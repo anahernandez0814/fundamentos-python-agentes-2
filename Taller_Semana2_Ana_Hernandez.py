@@ -1,4 +1,5 @@
-import datetime # Se importa libreria para agregar el nuevo comando de fecha_hoy
+import datetime
+from os import system # Se importa libreria para agregar el nuevo comando de fecha_hoy
 
 """Fase 1: Capa de Seguridad (Login)
 Antes de que el Agente despierte y comience a escuchar comandos, debe verificar quién intenta 
@@ -66,34 +67,54 @@ y un comando para mostrar la fecha actual (solo para administradores).
 """
 
 def commands(user, role): 
-    print("=" * 70)
-    print("Comandos disponibles: ping, contar, fecha_hoy, validar_pass, calculadora, salir")
-    print("=" * 70)
-
     cmd = ""
     system_on = True
+    chat_history = [] # Marca de tiempo (timestamp), comando usado, rol, descripcion 
+    system_message = [] # Mensajes generados por el sistema para cada comando
+
+    # Variable para pruebas, simulación de persistencia de historial
+    test_chat_history = [{'timestamp': '2026-03-29 18:36:30', 'comando': 'ping', 'rol': 'administrador', 'autor': 'admin', 'descripcion': 'Respuesta al comando ping.'}, 
+                         {'timestamp': '2026-03-29 18:36:43', 'comando': 'contar', 'rol': 'administrador', 'autor': 'admin', 'descripcion': "Comando contar ejecutado. Palabra ingresada: 'oscuridad'"}, 
+                         {'timestamp': '2026-03-29 18:37:01', 'comando': 'fecha_hoy', 'rol': 'administrador', 'autor': 'admin', 'descripcion': "Comando fecha_hoy ejecutado por un usuario con rol 'administrador'."}, 
+                         {'timestamp': '2026-03-29 18:37:22', 'comando': 'validar_pass', 'rol': 'administrador', 'autor': 'admin', 'descripcion': "Comando validar_pass ejecutado para el usuario 'admin'."}, 
+                         {'timestamp': '2026-03-29 18:37:47', 'comando': 'calculadora', 'rol': 'administrador', 'autor': 'admin', 'descripcion': 'Comando calculadora ejecutado.'}, 
+                         {'timestamp': '2026-03-29 18:37:55', 'comando': 'salir', 'rol': 'administrador', 'autor': 'admin', 'descripcion': 'Se ha solicitado terminar la sesión.'}] 
     
     while system_on:
+        print("=" * 70)
+        print("Comandos disponibles: ping, contar, fecha_hoy, validar_pass, calculadora, historial, salir")
+        print("\n")
         cmd = input("Ingrese un comando: ").lower()
-        print("Comandos disponibles: ping, contar, fecha_hoy, validar_pass, calculadora, salir")
         print("=" * 70)
         
         if cmd == "salir":
+            system_message = "Se ha solicitado terminar la sesión."
             system_on = False
             print("Apagando el sistema... ¡Hasta luego!")
         elif cmd == "ping":
+            system_message = "Respuesta al comando ping."
             print("pong")
         elif cmd == "contar":
-            count()
+            system_message = count()
         # Comandos nuevos agregados para la fase 3
         elif cmd == "fecha_hoy":
             date(role)
+            system_message = f"Comando fecha_hoy ejecutado por un usuario con rol '{role}'."
         elif cmd == "validar_pass":
             validate_password(user)
+            system_message = f"Comando validar_pass ejecutado para el usuario '{user}'."
         elif cmd == "calculadora":
             calculator()
+            system_message = "Comando calculadora ejecutado."
+        elif cmd == "historial":
+            system_message = chat_log(cmd, chat_history, test_chat_history)
+
         else: 
             print(f"Comando '{cmd}' no reconocido. Intente nuevamente.")
+            system_message = f"Comando no reconocido: '{cmd}'."
+        
+        log(cmd, role, system_message, chat_history, user) # Llamada a la función log para registrar cada comando ejecutado y su resultado
+        print("\n",chat_history, "\n") 
 
 #Se utiliza una función separada para manejar el comando contar,
 #lo que mejora la organización del código y facilita su mantenimiento.
@@ -111,6 +132,8 @@ def count():
     print(f"Total de letras: {letters_total}")
     print(f"Total de vocales: {total_vowels}")
     print(f"Total de consonantes: {total_consonants}")
+    mensaje = f"Comando contar ejecutado. Palabra ingresada: '{word}'"  
+    return mensaje
 
 # Muestra la fecha actual solo si el rol es administrador.
 def date(role):
@@ -169,6 +192,55 @@ def calculator():
 
     print(f"Resultado: {resultado}")
 
+def chat_log(cmd, chat_history, test_chat_history):
+    print("Comandos disponibles: historial, historial all, historial clear")
+    cmd = input("Ingrese un comando: ").strip().lower()
+    # Para manejar las singularidades del comando separé la entrada con split() y así distinguí historial, historial all e historial clear.
+    parts = cmd.split()
+
+    if len(parts) == 2 and parts[0] == "historial" and parts[1] == "all":
+        if not chat_history:
+            print("[PseudoAgente] No hay historial almacenado.")
+            return "Comando historial all ejecutado. Historial vacío."
+        else:
+            for memory in chat_history:
+                print(f"{memory['timestamp']} - Comando: {memory['comando']}, Rol: {memory['rol']}, Descripción: {memory['descripcion']}")
+            system_message = "Comando historial all ejecutado. Se muestra todo el historial de comandos."
+           
+    elif len(parts) == 2 and parts[0] == "historial" and parts[1] == "clear":
+        chat_history.clear()
+        print("[PseudoAgente] Historial limpiado.")
+        system_message = "Comando historial clear ejecutado. Se ha limpiado el historial de comandos."
+    
+    elif len(parts) == 1 and parts[0] == "historial":
+        palabra_clave = input("Ingresa la palabra clave a buscar: ").strip().lower()
+        coincidencias = 0
+        for memoria in test_chat_history:
+            mensaje = memoria["descripcion"].lower()
+            # Con el operador in comparé si la palabra clave aparece dentro del mensaje, aunque sea una parte del texto.
+            if palabra_clave in mensaje:
+                coincidencias += 1
+                print(f"Autor: {memoria['autor']} | Mensaje: {memoria['descripcion']}")
+        print(f"Coincidencias encontradas: {coincidencias}")
+
+        if coincidencias == 0:
+            print("[PseudoAgente] No encontré registros que coincidan con esa palabra.")
+        system_message = f"Busqueda en historial con palabra clave '{palabra_clave}' ({coincidencias} coincidencias)."
+    else:
+        print("[PseudoAgente] Comando no reconocido dentro de historial.")
+        system_message = f"Subcomando de historial no valido: '{cmd}'."
+
+    return system_message
+
+def log(cmd, role, system_message, chat_history, user):
+    log_entry = {
+        "timestamp": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "comando": cmd,
+        "rol": role,
+        "autor": user,
+        "descripcion": system_message
+    }
+    chat_history.append(log_entry)
 
 # Punto de entrada principal del sistema. 
 def start_system():
@@ -194,7 +266,6 @@ def start_system():
     # El sistema pasa a la fase 2 y 3 solo si el login es exitoso, y se le pasan el usuario y rol para gestionar los comandos disponibles.
     print("\n" + "=" * 60)
     print("Fase 2: Agente activo. Escuchando comandos...")
-    print("=" * 60)
     commands(user, role)
 
 
