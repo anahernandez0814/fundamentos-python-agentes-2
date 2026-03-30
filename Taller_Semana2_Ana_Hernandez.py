@@ -192,6 +192,9 @@ def calculator():
 
     print(f"Resultado: {resultado}")
 
+# La función chat_log maneja el submenú de historial del pseudoagente. 
+# Le pido al usuario un subcomando y, dependiendo de lo que ingrese, muestro todo el historial con historial all, lo limpio con historial clear, 
+# o busco entradas por palabra clave con historial. En todos los casos retorno un mensaje describiendo lo que se ejecutó.
 def chat_log(cmd, chat_history, test_chat_history):
     print("Comandos disponibles: historial, historial all, historial clear")
     cmd = input("Ingrese un comando: ").strip().lower()
