@@ -1,6 +1,16 @@
 import datetime
-from os import system # Se importa libreria para agregar el nuevo comando de fecha_hoy
 
+# Alias Type
+# Usar un alias como AgentMemory nos permite darle un nombre claro a una estructura de datos
+# que de otro modo seria solo "list[dict[str, str]]", algo dificil de leer y de entender a simple vista.
+# Cuando trabajamos con modelos de IA, las funciones reciben y devuelven estructuras complejas
+# (listas de diccionarios, historiales de conversacion, etc). Si tipamos todo con tipos genericos
+# como list o dict, cualquier persona (o modelo) que lea el codigo no sabe que representa esa lista.
+# En cambio, si ve "AgentMemory" entiende de inmediato que es la memoria del agente.
+# Esto hace el codigo mas legible para humanos y mas facil de interpretar para un LLM
+# que necesita entender el contexto de los datos que esta procesando.
+type Historial = dict[str, str]
+type AgentMemory = list[Historial]
 """Fase 1: Capa de Seguridad (Login)
 Antes de que el Agente despierte y comience a escuchar comandos, debe verificar quién intenta 
 acceder:
@@ -30,7 +40,12 @@ user_credentials = {
 maximum_retries = 3 # Número máximo de intentos permitidos para el login
 
 # Función que realiza el proceso de autenticación del usuario
-def login():
+def login() -> tuple[str, str] | tuple[None, None]:
+    """Maneja el inicio de sesion del usuario.
+    Pide usuario y contraseña, valida contra las credenciales guardadas
+    y devuelve una tupla con (usuario, rol) si el login es exitoso,
+    o (None, None) si se agotan los intentos.
+    """
     retries = 0 # Variables para contar intentos y gestionar el bloqueo
     
     while retries < maximum_retries:
@@ -66,14 +81,18 @@ como una calculadora básica, validación de contraseñas,
 y un comando para mostrar la fecha actual (solo para administradores).
 """
 
-def commands(user, role): 
-    cmd = ""
-    system_on = True
-    chat_history = [] # Marca de tiempo (timestamp), comando usado, rol, descripcion 
-    system_message = [] # Mensajes generados por el sistema para cada comando
+def commands(user: str, role: str) -> None:
+    """Bucle principal del agente. Muestra el menu de comandos disponibles,
+    captura lo que el usuario escribe y llama a la funcion correspondiente.
+    Recibe el nombre de usuario y su rol para controlar permisos.
+    """
+    cmd: str = ""
+    system_on: bool = True
+    chat_history: AgentMemory = [] # Marca de tiempo (timestamp), comando usado, rol, descripcion
+    system_message: str = "" # Mensajes generados por el sistema para cada comando
 
     # Variable para pruebas, simulación de persistencia de historial
-    test_chat_history = [{'timestamp': '2026-03-29 18:36:30', 'comando': 'ping', 'rol': 'administrador', 'autor': 'admin', 'descripcion': 'Respuesta al comando ping.'}, 
+    test_chat_history: AgentMemory = [{'timestamp': '2026-03-29 18:36:30', 'comando': 'ping', 'rol': 'administrador', 'autor': 'admin', 'descripcion': 'Respuesta al comando ping.'}, 
                          {'timestamp': '2026-03-29 18:36:43', 'comando': 'contar', 'rol': 'administrador', 'autor': 'admin', 'descripcion': "Comando contar ejecutado. Palabra ingresada: 'oscuridad'"}, 
                          {'timestamp': '2026-03-29 18:37:01', 'comando': 'fecha_hoy', 'rol': 'administrador', 'autor': 'admin', 'descripcion': "Comando fecha_hoy ejecutado por un usuario con rol 'administrador'."}, 
                          {'timestamp': '2026-03-29 18:37:22', 'comando': 'validar_pass', 'rol': 'administrador', 'autor': 'admin', 'descripcion': "Comando validar_pass ejecutado para el usuario 'admin'."}, 
@@ -95,19 +114,32 @@ def commands(user, role):
             system_message = "Respuesta al comando ping."
             print("pong")
         elif cmd == "contar":
-            system_message = count()
+            result = count()
+            print(result)
+            system_message = f"Comando contar ejecutado."
         # Comandos nuevos agregados para la fase 3
         elif cmd == "fecha_hoy":
-            date(role)
-            system_message = f"Comando fecha_hoy ejecutado por un usuario con rol '{role}'."
+            try:
+                result = date(role)
+                print(result)
+                system_message = f"Comando fecha_hoy ejecutado por un usuario con rol '{role}'."
+            except PermissionError as e:
+                print(f"[Acceso Denegado] {e}")
+                system_message = f"Acceso denegado al comando fecha_hoy para rol '{role}'."
         elif cmd == "validar_pass":
-            validate_password(user)
+            result = validate_password(user)
+            print(result)
             system_message = f"Comando validar_pass ejecutado para el usuario '{user}'."
         elif cmd == "calculadora":
-            calculator()
+            result = calculator()
+            print(result)
             system_message = "Comando calculadora ejecutado."
         elif cmd == "historial":
-            system_message = chat_log(cmd, chat_history, test_chat_history)
+            print("Opciones: 'all' (ver todo), 'clear' (limpiar), o escribe una palabra para buscar")
+            action = input("Ingrese la accion: ").strip().lower()
+            result = chat_log(action, chat_history, test_chat_history)
+            print(result)
+            system_message = f"Comando historial ejecutado con accion '{action}'."
 
         else: 
             print(f"Comando '{cmd}' no reconocido. Intente nuevamente.")
@@ -118,7 +150,11 @@ def commands(user, role):
 
 #Se utiliza una función separada para manejar el comando contar,
 #lo que mejora la organización del código y facilita su mantenimiento.
-def count():
+def count() -> str:
+    """Pide una palabra al usuario y cuenta cuantas letras, vocales
+    y consonantes tiene. Devuelve un mensaje de texto con el resumen
+    del conteo para que quede registrado en el historial.
+    """
     word = input("Ingrese una palabra: ").strip().lower()
     letters_total = len(word)
     total_vowels = 0
@@ -129,51 +165,54 @@ def count():
             total_vowels += 1
         else:
             total_consonants += 1
-    print(f"Total de letras: {letters_total}")
-    print(f"Total de vocales: {total_vowels}")
-    print(f"Total de consonantes: {total_consonants}")
-    mensaje = f"Comando contar ejecutado. Palabra ingresada: '{word}'"  
-    return mensaje
+    result = f"Total de letras: {letters_total}\nTotal de vocales: {total_vowels}\nTotal de consonantes: {total_consonants}"
+    return result
 
 # Muestra la fecha actual solo si el rol es administrador.
-def date(role):
-    if role == "administrador":
-        day = datetime.date.today()
-        print(f"Fecha actual: {day}")
-    else:
-        print("[Acceso Denegado] Este comando requiere privilegios de administrador.")
+def date(role: str) -> str:
+    """Muestra la fecha de hoy.
+    Solo funciona si el usuario tiene rol de administrador.
+    Si el rol no tiene permisos, lanza un PermissionError que debe
+    ser atrapado por quien llame a esta funcion.
+    Retorna un string con la fecha actual.
+    """
+    # Cuando el rol no es administrador, raise lanza la excepcion PermissionError.
+    # Esto hace que la funcion se detenga inmediatamente y el error "viaje" hacia arriba,
+    # es decir, vuelve al lugar donde se llamo esta funcion (el bucle principal en commands()).
+    # Alla, el bloque try/except lo atrapa con "except PermissionError" y muestra
+    # el mensaje de forma controlada, sin que el programa se cierre o crashee.
+    if role != "administrador":
+        raise PermissionError("Privilegios insuficientes")
+    day = datetime.date.today()
+    return f"Fecha actual: {day}"
 
 # Funcion en donde se valida la contraseña ingresada por el usuario, se pasa el valor de usuario 
 # para evitar que el usuario pueda usar su nombre como contraseña, lo que es una mala práctica de seguridad.
-def validate_password(user):
+def validate_password(user: str) -> str:
+    """Pide una nueva contraseña y revisa si cumple las reglas basicas:
+    que no sea igual al nombre de usuario y que tenga al menos 8 caracteres.
+    Devuelve un string con el resultado de la validacion.
+    """
     new_password = input("Ingrese una nueva contraseña para validar: ").strip()
     if new_password.lower() == user.lower():
-                print("Rechazada: La contraseña no puede ser igual al nombre de usuario.")
+        return "Rechazada: La contraseña no puede ser igual al nombre de usuario."
     elif len(new_password) < 8:
-        print("La contraseña es demasiado corta. Debe tener al menos 8 caracteres.")
-        return False
-    print("Contraseña válida.")
-    return True
+        return "La contraseña es demasiado corta. Debe tener al menos 8 caracteres."
+    return "Contraseña válida."
 
-""" 
-Se define la función calculadora, que permite realizar operaciones básicas, 
-se utiliza un bloque try-except para manejar errores de entrada, como ingresar texto en lugar de números, 
-y se incluyen validaciones para operadores no válidos y división por cero.
-Adicional se utiliza la función float() para permitir el ingreso de números decimales, 
-lo que hace la calculadora más versátil, ya si se ingresa un número entero, 
-se convertirá automáticamente a decimal sin afectar el resultado.
-No se utiliza int directamente para evitar que el programa se rompa si el usuario ingresa un número decimal y no se
-utiliza double porque en Python no existe ese tipo de dato, el equivalente sería float, 
-que es el tipo de dato para números decimales.
-"""
-def calculator():
+def calculator() -> str:
+    """Calculadora basica que pide dos numeros y un operador (+, -, *, /).
+    Usa float para aceptar tanto enteros como decimales sin que el programa falle.
+    Tiene proteccion contra texto no numerico (try/except ValueError)
+    y contra division por cero.
+    Devuelve un string con el resultado o con el mensaje de error correspondiente.
+    """
     try:
         number_one = float(input("Ingresa el primer número: ").strip())
         operador = input("Ingresa el operador (+, -, *, /): ").strip()
         number_two = float(input("Ingresa el segundo número: ").strip())
     except ValueError:
-        print("Error: debes ingresar valores numéricos válidos.")
-        return
+        return "Error: debes ingresar valores numéricos válidos."
 
     if operador == "+":
         resultado = number_one + number_two
@@ -183,60 +222,53 @@ def calculator():
         resultado = number_one * number_two
     elif operador == "/":
         if number_two == 0:
-            print("Error: no se puede dividir por cero.")
-            return
+            return "Error: no se puede dividir por cero."
         resultado = number_one / number_two
     else:
-        print("Operador no válido. Usa +, -, * o /.")
-        return
+        return f"Operador no válido. Usa +, -, * o /."
 
-    print(f"Resultado: {resultado}")
+    return f"Resultado: {resultado}"
 
-# La función chat_log maneja el submenú de historial del pseudoagente. 
-# Le pido al usuario un subcomando y, dependiendo de lo que ingrese, muestro todo el historial con historial all, lo limpio con historial clear, 
-# o busco entradas por palabra clave con historial. En todos los casos retorno un mensaje describiendo lo que se ejecutó.
-def chat_log(cmd, chat_history, test_chat_history):
-    print("Comandos disponibles: historial, historial all, historial clear")
-    cmd = input("Ingrese un comando: ").strip().lower()
-    # Para manejar las singularidades del comando separé la entrada con split() y así distinguí historial, historial all e historial clear.
-    parts = cmd.split()
-
-    if len(parts) == 2 and parts[0] == "historial" and parts[1] == "all":
+def chat_log(action: str, chat_history: AgentMemory, test_chat_history: AgentMemory) -> str:
+    """Gestiona todo lo relacionado con el historial de comandos.
+    Recibe la accion a realizar: "all" para ver todo, "clear" para limpiar,
+    o cualquier otra palabra para buscarla en los registros.
+    No imprime nada, solo arma el texto y lo devuelve como string
+    para que el bucle principal se encargue de mostrarlo.
+    """
+    if action == "all":
         if not chat_history:
-            print("[PseudoAgente] No hay historial almacenado.")
-            return "Comando historial all ejecutado. Historial vacío."
-        else:
-            for memory in chat_history:
-                print(f"{memory['timestamp']} - Comando: {memory['comando']}, Rol: {memory['rol']}, Descripción: {memory['descripcion']}")
-            system_message = "Comando historial all ejecutado. Se muestra todo el historial de comandos."
-           
-    elif len(parts) == 2 and parts[0] == "historial" and parts[1] == "clear":
+            return "[PseudoAgente] No hay historial almacenado."
+        lines: list[str] = []
+        for memory in chat_history:
+            lines.append(f"{memory['timestamp']} - Comando: {memory['comando']}, Rol: {memory['rol']}, Descripción: {memory['descripcion']}")
+        return "\n".join(lines)
+
+    elif action == "clear":
         chat_history.clear()
-        print("[PseudoAgente] Historial limpiado.")
-        system_message = "Comando historial clear ejecutado. Se ha limpiado el historial de comandos."
-    
-    elif len(parts) == 1 and parts[0] == "historial":
-        palabra_clave = input("Ingresa la palabra clave a buscar: ").strip().lower()
-        coincidencias = 0
+        return "[PseudoAgente] Historial limpiado."
+
+    else:
+        # La accion es una palabra clave para buscar en el historial
+        # Con el operador in comparamos si la palabra clave aparece dentro del mensaje, aunque sea una parte del texto.
+        coincidencias: int = 0
+        lines: list[str] = []
         for memoria in test_chat_history:
             mensaje = memoria["descripcion"].lower()
-            # Con el operador in comparé si la palabra clave aparece dentro del mensaje, aunque sea una parte del texto.
-            if palabra_clave in mensaje:
+            if action in mensaje:
                 coincidencias += 1
-                print(f"Autor: {memoria['autor']} | Mensaje: {memoria['descripcion']}")
-        print(f"Coincidencias encontradas: {coincidencias}")
-
+                lines.append(f"Autor: {memoria['autor']} | Mensaje: {memoria['descripcion']}")
+        lines.append(f"Coincidencias encontradas: {coincidencias}")
         if coincidencias == 0:
-            print("[PseudoAgente] No encontré registros que coincidan con esa palabra.")
-        system_message = f"Busqueda en historial con palabra clave '{palabra_clave}' ({coincidencias} coincidencias)."
-    else:
-        print("[PseudoAgente] Comando no reconocido dentro de historial.")
-        system_message = f"Subcomando de historial no valido: '{cmd}'."
+            lines.append("[PseudoAgente] No encontré registros que coincidan con esa palabra.")
+        return "\n".join(lines)
 
-    return system_message
-
-def log(cmd, role, system_message, chat_history, user):
-    log_entry = {
+def log(cmd: str, role: str, system_message: str, chat_history: AgentMemory, user: str) -> None:
+    """Crea un registro (diccionario) con la info del comando ejecutado:
+    fecha/hora, comando, rol, autor y descripcion. Luego lo agrega
+    al historial para que quede guardado en memoria.
+    """
+    log_entry: Historial = {
         "timestamp": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         "comando": cmd,
         "rol": role,
@@ -245,8 +277,12 @@ def log(cmd, role, system_message, chat_history, user):
     }
     chat_history.append(log_entry)
 
-# Punto de entrada principal del sistema. 
-def start_system():
+# Punto de entrada principal del sistema.
+def start_system() -> None:
+    """Punto de entrada del programa. Arranca el sistema mostrando
+    la pantalla de login y, si el usuario se autentica correctamente,
+    activa el bucle de comandos del agente.
+    """
     print("=" * 70)
     print("Inicio sistema del agente autonomo. Fase 1: Capa de Seguridad (Login)")
     print("=" * 70)
